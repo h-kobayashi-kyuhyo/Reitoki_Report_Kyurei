@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f0f2f5; padding: 15px; font-size: 18px; }
+    .container { max-width: 900px !important; }
+    
+    /* ステップボタン */
+    .btn-step { font-weight: bold; border-radius: 12px; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .btn-step:active { transform: scale(0.98); }
+
+    /* 入力フォーム・テーブル */
+    .card { border: none; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
+    .label-title { font-weight: bold; color: #333; }
+    .scrollable-table { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #dee2e6; border-radius: 5px; background-color: white; }
+    .table th { background-color: #f8f9fa; font-weight: 600; font-size: 14px; white-space: nowrap; }
+    .table td { padding: 10px 5px !important; white-space: nowrap; }
+
+    /*フォーム画面全体がPCで広がりすぎないよう制限 */
+    #formView { max-width:900px; margin: 0 auto; }
+
+    /* 入力パーツ */
+    .input-long{min-width:110px !important;}
+    .data-input { min-width: 90px; height: 48px !important; font-size: 1.1rem !important; text-align: center; }
+    select.data-input { padding-top: 8px !important; padding-bottom: 8px !important; }
+    .btn-group .btn { padding: 12px 0 !important; font-size: 16px !important; font-weight: bold; min-width: 35px; border-color: #ced4da; }
+    .btn-check:checked + .btn-outline-secondary { background-color: #0d6efd; border-color: #0d6efd; color: #fff; }
+
+    .data-input-narrow { 
+      min-width: 80px !important; 
+      max-width: 150px !important; /* PCでもこの幅以上には広がらない */
+      margin: 0 auto !important;   /* セルの中央に配置 */
+      height: 40px !important; 
+      font-size: 1.1rem !important; 
+    }
+    /* セレクトボックスの文字見切れ対策 */
+    .select-text-fit { 
+      font-size: 0.9rem !important; 
+      padding-left: 2px !important; 
+      padding-right: 22px !important; 
+      background-position: right 0.2rem center !important; 
+    }    
+
+    #displayLocation { font-size: 1rem; padding: 8px 15px; }
+    .loading-spinner { display: none; margin-left: 10px; }
+    
+    /* iframe（埋め込み）用のスタイル */
+    .iframe-container { position: relative; width: 100%; height: 70vh; min-height: 500px; border: 1px solid #ccc; border-radius: 5px; overflow: hidden; background: #fff; }
+    .iframe-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
+
+    .container-wide { max-width: 98% !important; transition: max-width 0.3s ease; }
+      /* ▼▼▼ 追加：表の枠線をハッキリさせるスタイル ▼▼▼ */
+    .custom-table { border-collapse: collapse; width: 100%; }
+    .custom-table th, .custom-table td { 
+      border: 1px solid #777 !important; /* 濃いグレーの枠線 */
+      padding: 6px 10px !important;
+    }
+    .custom-table thead th { 
+      background-color: #d1e7dd !important; /* 見出しの背景色（薄い緑） */
+      position: sticky; 
+      top: 0; 
+      z-index: 1; 
+      box-shadow: 0 2px 2px -1px rgba(0,0,0,0.2);
+    }    
+     /* ▼▼▼ 追加：文字が入っていない空っぽのセルは枠線を消す ▼▼▼ */
+    .custom-table th.no-border, 
+    .custom-table td.no-border {
+      border: none !important;
+      background-color: #fff !important;
+    }
+
+
+@media print {
+    /* 印刷時は不要なUIを隠す */
+    nav, .navbar, .btn, button, select, input[type="date"], #listTableSelect, .spinner-border, .alert {
+      display: none !important;
+    }
+    body {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      background-color: #fff !important;
+      color: #000 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    /* テーブルのスクロール制限を解除 */
+    .table-responsive {
+      overflow: visible !important;
+      max-height: none !important; 
+      width: 100% !important;
+    }
+
+    /* 改ページを強制するクラス */
+    .page-break-before {
+      page-break-before: always !important;
+      break-before: page !important;
+    }
+
+    /* 大伸運輸の印刷時：元のテーブルを隠し、動的生成した印刷用エリアを表示 */
+    body.printing-daishin #reportTableContent {
+      display: none !important;
+    }
+    #daishinPrintArea {
+      display: block !important;
+    }
+
+    /* ▼ 各画面の縮小率調整 ▼ */
+    #reportTableContent {
+      zoom: 0.70; /* 運転日報をページに収める調整 */
+    }
+    #daishinPrintArea {
+      zoom: 0.75; /* 大伸運輸をページに収める調整 */
+    }
+    #listTableContent {
+      zoom: 0.50; /* 一覧表(A〜AE列)を1枚に押し込む */
+    }
+  }
+
+  </style>
+</head>
+<body>
+<div class="container">
+  <h3 class="text-center my-4">施設運転日報システム</h3>
+  
+  <div id="loginView" class="card p-4 mx-auto" style="max-width: 450px;">
+    <h5 class="mb-3 text-secondary text-center">ログインしてください</h5>
+    <div class="mb-3">
+      <label class="form-label text-muted">事業所</label>
+      <select id="loginId" class="form-select form-select-lg">
+        <option value="">事業所を読み込み中...</option>
+      </select>
+    </div>
+    <div class="mb-4">
+      <label class="form-label text-muted">パスワード</label>
+      <input type="password" id="loginPass" class="form-control form-control-lg" placeholder="パスワードを入力">
+    </div>
+    <button class="btn btn-primary btn-lg w-100" onclick="attemptLogin()">ログイン</button>
+  </div>
+
+  <div id="menuView" class="text-center" style="display:none;">
+    <h4 id="welcomeMsg" class="mb-4 text-primary fw-bold"></h4> 
+     <div class="d-grid gap-3 col-md-8 mx-auto">
+       <button class="btn btn-outline-primary btn-lg py-4 btn-step" onclick="showBuildingSelection()">機械日報の入力</button>
+      
+       <button class="btn btn-outline-success btn-lg py-4 btn-step" onclick="showReportTable('運転日報')">運転日報（表で確認）</button>
+       <button class="btn btn-outline-info btn-lg py-4 btn-step" onclick="showReportTable('大伸運輸')">大伸運輸_電気・水道（表で確認）</button>
+       <button class="btn btn-outline-warning btn-lg py-4 btn-step" onclick="showListTable()">一覧表（運転時間 / 電気・水道）</button>
+       <button class="btn btn-light btn-lg mt-3" onclick="logout()">ログアウト</button>
+     </div>
+  </div>
+
+  <div id="buildingSelectView" style="display:none;" class="text-center">
+    <button class="btn btn-outline-secondary mb-4" onclick="backToMenu()">← メニューへ戻る</button>
+    <h4 class="mb-4 fw-bold">「棟」を選択してください</h4>
+    <div id="buildingButtonContainer" class="d-grid gap-3 col-md-8 mx-auto"></div>
+  </div>
+
+  <div id="areaSelectView" style="display:none;" class="text-center">
+    <button class="btn btn-outline-secondary mb-3" onclick="showBuildingSelection()">← 棟選択に戻る</button>
+    <h4 id="selectedBuildingTitle" class="mb-3 fw-bold text-dark"></h4>
+    
+    <div class="card p-3 mb-4 bg-light shadow-sm text-start mx-auto" style="max-width: 500px;">
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="small text-muted fw-bold">点検日</label>
+          <input type="date" id="commonDate" class="form-control" onchange="updateAreaButtonsBadge()">
+        </div>
+        <div class="col-6">
+          <label class="small text-muted fw-bold">天候</label>
+          <select id="commonWeather" class="form-select">
+            <option>晴</option><option>曇り</option><option>雨</option><option>雪</option>
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="small text-muted fw-bold">担当者</label>
+          <select id="commonStaff" class="form-select">
+            <option value="">担当者を読み込み中...</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <h5 class="mb-3 text-muted small">入力するエリアを選択してください</h5>
+    <div id="areaButtonContainer" class="d-grid gap-3 col-md-8 mx-auto"></div>
+  </div>
+
+  <div id="formView" style="display:none;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <button class="btn btn-outline-secondary" onclick="showAreaSelection(currentBuilding)">← エリア選択に戻る</button>
+      <div>
+        <span id="displayLocation" class="badge bg-dark fs-6"></span>
+        <span id="unfilledBadge" class="badge bg-danger fs-6 ms-2" style="display:none;">未入力: <span id="unfilledCount">0</span>件</span>
+      </div>
+    </div>
+
+    <div id="formContainer"></div>
+    <button id="saveBtn" class="btn btn-success btn-lg w-100 mt-5 mb-5 shadow" onclick="confirmSubmit()">
+      報告を送信する <span id="saveSpinner" class="spinner-border spinner-border-sm loading-spinner"></span>
+    </button>
+  </div>
+
+<div id="reportTableView" style="display: none;">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 id="reportTableTitle" class="text-primary mb-0 fw-bold"></h4>
+        <button class="btn btn-outline-secondary btn-sm" onclick="backToMenu()">メニューに戻る</button>
+      </div>
+      <div class="mb-3 d-flex align-items-center bg-light p-2 rounded border">
+        <label class="me-2 fw-bold small text-muted">表示日:</label>
+        <input type="date" id="reportTableDate" class="form-control form-control-sm w-auto" onchange="reloadReportTable()">
+        <button class="btn btn-success btn-sm ms-2" onclick="printReportTable()">PDFで印刷</button>
+      </div>
+
+      <div id="reportTableSpinner" class="text-center my-4" style="display: none;">
+        <div class="spinner-border text-primary" role="status"></div>
+        <div class="mt-2 text-muted small">スプレッドシートからデータを取得中...</div>
+      </div>
+      <div class="table-responsive shadow-sm rounded border bg-white" style="max-height: 80vh; overflow-y: auto;">
+        <table class="custom-table" id="reportTableContent"></table>
+      </div>
+    </div>
+
+    <div id="listTableView" style="display: none;">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center">
+          <h4 class="text-primary mb-0 fw-bold me-3">一覧表確認</h4>
+          <select id="listTableSelect" class="form-select form-select-sm w-auto border-primary" onchange="loadListTable()">
+            <option value="一覧表_運転時間">運転時間</option>
+            <option value="一覧表_電気/水道">電気・水道</option>
+          </select>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm" onclick="backToMenu()">メニューに戻る</button>
+      </div>
+
+      <div class="mb-3 d-flex flex-wrap align-items-center bg-light p-2 rounded border">
+        <label class="me-2 fw-bold small text-muted">表示日 (対象月):</label>
+        <input type="date" id="listTableDate" class="form-control form-control-sm w-auto" onchange="loadListTable()">
+        <button class="btn btn-success btn-sm ms-2" onclick="printReportTable()">PDFで印刷</button>
+      </div>
+
+      <div id="listTableSpinner" class="text-center my-4" style="display: none;">
+        <div class="spinner-border text-primary" role="status"></div>
+        <div class="mt-2 text-muted small">データを取得中...</div>
+      </div>
+      
+      <div class="table-responsive shadow-sm rounded border bg-white" style="max-height: 80vh; overflow-y: auto;">
+        <table class="custom-table" id="listTableContent"></table>
+      </div>
+    </div>
+
+</div>
+
+<!-- 送信確認用モーダル -->
+<div class="modal fade" id="confirmSubmitModal" tabindex="-1" aria-labelledby="confirmSubmitModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title fw-bold" id="confirmSubmitModalLabel">送信確認</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="閉じる"></button>
+      </div>
+      <div class="modal-body fs-5 text-center py-4">
+        入力した報告データを送信・上書き保存します。<br>よろしいですか？
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">キャンセル</button>
+        <button type="button" class="btn btn-success btn-lg px-4" onclick="executeSubmit()">送信する</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 送信完了用モーダル -->
+<div class="modal fade" id="resultModal" tabindex="-1" aria-labelledby="resultModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title fw-bold" id="resultModalLabel">完了</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="閉じる" onclick="showAreaSelection(currentBuilding)"></button>
+      </div>
+      <div class="modal-body fs-5 text-center py-4 fw-bold" id="resultModalBody">
+        <!-- メッセージがここに入ります -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary btn-lg w-100" data-bs-dismiss="modal" onclick="showAreaSelection(currentBuilding)">閉じる (エリア選択へ戻る)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+// ① 機械運転日報_報告書 のURL
+const reportSheetUrl = "https://docs.google.com/spreadsheets/d/1-cVBN94i6ewaCPUaLvd05I9sIsgme0oMuYUDH6tOVYM/edit?usp=sharing?single=true&gid=431557527";
+
+// ② 大伸運輸_電気・水道 のURL
+const daishinSheetUrl = "https://docs.google.com/spreadsheets/d/1-cVBN94i6ewaCPUaLvd05I9sIsgme0oMuYUDH6tOVYM/edit?usp=sharing?single=true&gid=1302333576";
+
+// 🌟 GAS本番環境(google.script.run)を最優先で使うための安全な判定
+function getScriptRun(successCallback) {
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    return google.script.run.withSuccessHandler(successCallback);
+  }
+  // 以下はローカルプレビュー環境などのためのダミー処理
+  return {
+    getSiteList: function() { setTimeout(() => successCallback([ { id: 'site1', name: '東京事業所(デモ)' } ]), 300); },
+    getInitialData: function() { setTimeout(() => successCallback({ master: [], staff: [] }), 300); },
+    checkLogin: function() { setTimeout(() => successCallback({ success: true, siteName: '東京(デモ)' }), 500); },
+    getDailyData: function() { setTimeout(() => successCallback([]), 600); },
+    getBuildingData: function() { setTimeout(() => successCallback([]), 600); },
+    saveData: function() { setTimeout(() => successCallback("保存完了"), 1000); },
+    getReportTableData: function() { setTimeout(() => successCallback({success:true, data:[["デモデータ"]], containerId:"reportTableContent", spinnerId:"reportTableSpinner"}), 500); },
+    getListTableData: function() { setTimeout(() => successCallback({success:true, data:[["デモデータ"]], containerId:"listTableContent", spinnerId:"listTableSpinner"}), 500); }
+  };
+}
+
+let masterData = [];
+let staffMaster = []; 
+let currentSiteName = "";
+let currentBuilding = "";
+let currentArea = "";
+let currentReportType = ""; 
+let currentSaveSsId = "";
+
+// ページ読み込み時の処理
+window.onload = () => {
+  getScriptRun(list => {
+    const select = document.getElementById('loginId');
+    select.innerHTML = '<option value="">事業所を選択してください</option>';
+    if (list && list.length > 0) {
+      list.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.id; opt.textContent = item.name; select.appendChild(opt);
+      });
+    }
+  }).getSiteList();
+
+  getScriptRun(res => { 
+    if(res){ masterData = res.master || []; staffMaster = res.staff || []; } 
+  }).getInitialData();
+};
+
+function logout() {
+  if (!confirm("ログアウトしますか？")) return;
+  currentSiteName = ""; currentBuilding = ""; currentArea = "";
+  document.getElementById('loginPass').value = "";
+  document.getElementById('commonStaff').value = "";
+  document.getElementById('commonDate').value = "";
+  document.getElementById('commonWeather').selectedIndex = 0;
+
+  hideAllViews();
+  document.getElementById('loginView').style.display = 'block';
+}
+
+function setupCommonFields() {
+  const dateInput = document.getElementById('commonDate');
+  if(!dateInput.value) { dateInput.value = new Date().toISOString().split('T')[0]; }
+  const staffSelect = document.getElementById('commonStaff');
+  const filteredStaff = staffMaster.filter(row => row[1] === currentSiteName);
+  staffSelect.innerHTML = '<option value="">選択してください</option>' + filteredStaff.map(row => `<option value="${row[0]}">${row[0]}</option>`).join('');
+}
+
+function attemptLogin() {
+  const id = document.getElementById('loginId').value;
+  const pass = document.getElementById('loginPass').value;
+  if (!id || !pass) return alert("事業所とパスワードを入力してください");
+  getScriptRun(result => {
+    if (result.success) {
+      currentSiteName = result.siteName; 
+      currentSaveSsId = result.targetSsId;
+
+      hideAllViews();
+      document.getElementById('menuView').style.display = 'block';
+      document.getElementById('welcomeMsg').innerText = "事業所: " + currentSiteName;
+      setupCommonFields();
+    } else { alert("パスワードが違います"); }
+  }).checkLogin(id, pass);
+}
+
+function showBuildingSelection() {
+  hideAllViews();
+  // 🌟 実際のHTMLに合わせて「buildingSelectView」に修正します！
+  document.getElementById('buildingSelectView').style.display = 'block';
+  // 🌟 実際のHTMLに合わせて「buildingButtonContainer」に修正します！
+  const container = document.getElementById('buildingButtonContainer');
+  container.innerHTML = '';
+
+  // 🌟 実際のHTMLに合わせて、日付インプットのIDを「commonDate」にします
+  const date = document.getElementById('commonDate').value;
+  const buildings = [...new Set(masterData.filter(r => r[0] === currentSiteName).map(r => r[1]))];
+
+  buildings.forEach(bld => {
+    if (!bld) return;
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-outline-primary btn-lg p-4 text-start d-flex justify-content-between align-items-center';
+    
+    // 🌟 ボタンの中に「棟の名前」と「未完了エリア数の表示枠」を組み込みます
+    btn.innerHTML = `
+      <span class="fs-4 fw-bold">${bld}</span>
+      <span class="badge bg-secondary fs-6" id="badge-bld-${bld}">確認中...</span>
+    `;
+    // 🌟 元のコードの遷移先である「showAreaSelection(bld)」を正しく呼び出します
+    btn.onclick = () => showAreaSelection(bld);
+    container.appendChild(btn);
+
+    // 🌟 画面が出た瞬間に、裏側でその棟の「未完了エリア数」を数えにいきます
+    updateBuildingButtonBadge(date, bld);
+  });
+}
+
+// 🌟【修正】棟選択ボタンの上に「未完了が残っているエリアの数」を計算して表示する関数
+function updateBuildingButtonBadge(date, bld) {
+  const badgeEl = document.getElementById(`badge-bld-${bld}`);
+  if (!badgeEl) return;
+
+  getScriptRun(data => {
+    // 1. マスタから、この棟に所属する「エリア名」のリストを重複なく取得
+    const allAreas = [...new Set(masterData.filter(r => r[0] === currentSiteName && r[1] === bld).map(r => r[2]))];
+    
+    // 🌟 未完了が1台以上残っている「エリアの数」を数える変数
+    let unfinishedAreaCount = 0;
+
+    // 2. エリアごとに、未入力の設備が1台でもあるかを判定する
+    allAreas.forEach(area => {
+      const areaMaster = masterData.filter(row => row[0] === currentSiteName && row[1] === bld && row[2] === area);
+      const eqRequiredMap = {};
+      
+      areaMaster.forEach(row => {
+        const eqName = row[3]; const type = row[4]; let itemsCount = 0;
+        if (type === 'Refrigerator' || type === 'Ref_V') {
+          const items = row[5] ? row[5].split(/[、,]/) : ["低圧","高圧","油面","電流"]; itemsCount = items.length;
+        } else { itemsCount = 1; }
+        if (!eqRequiredMap[eqName]) eqRequiredMap[eqName] = 0;
+        eqRequiredMap[eqName] += itemsCount;
+      });
+
+      const areaSavedData = data.filter(d => d.area === area);
+      const eqSavedMap = {}; const uniqueSavedItems = new Set();
+      areaSavedData.forEach(d => {
+        const key = `${d.no}-${d.item}`;
+        if (!uniqueSavedItems.has(key)) { uniqueSavedItems.add(key); if (!eqSavedMap[d.no]) eqSavedMap[d.no] = 0; eqSavedMap[d.no]++; }
+      });
+
+      // このエリアの中に、1台でも未完了の設備があるかをチェックする
+      let hasUnfinishedEq = false;
+      for (const eqName in eqRequiredMap) {
+        if ((eqSavedMap[eqName] || 0) < eqRequiredMap[eqName]) {
+          hasUnfinishedEq = true; // 未完了の設備を発見
+          break; // このエリアは未完了確定なのでループを抜ける
+        }
+      }
+
+      // 🌟 1台でも未完了の設備があれば、「未完了エリア」として1つカウントする
+      if (hasUnfinishedEq) {
+        unfinishedAreaCount++;
+      }
+    });
+
+    // 3. 計算結果をもとに、棟ボタンのバッジ表示を更新
+    if (unfinishedAreaCount > 0) {
+      badgeEl.className = 'badge bg-danger fs-6';
+      badgeEl.innerText = `未完了: ${unfinishedAreaCount}エリア`; // 🌟「〇エリア」表記
+    } else {
+      badgeEl.className = 'badge bg-success fs-6';
+      badgeEl.innerText = '完了';
+    }
+  }).getBuildingData(date, currentSiteName, bld, currentSaveSsId);
+}
+
+function showAreaSelection(buildingName) {
+  currentBuilding = buildingName; hideAllViews();
+  document.getElementById('areaSelectView').style.display = 'block';
+  document.getElementById('selectedBuildingTitle').innerText = buildingName;
+  const myConfig = masterData.filter(row => row[0] === currentSiteName && row[1] === buildingName);
+  const areas = [...new Set(myConfig.map(row => row[2]))];
+  const container = document.getElementById('areaButtonContainer');
+  container.innerHTML = '';
+  areas.forEach(a => {
+    const btn = document.createElement('button');
+    btn.id = `area-btn-${a}`;
+    btn.className = "btn btn-outline-dark btn-lg py-4 btn-step position-relative d-flex justify-content-center align-items-center";
+    btn.innerHTML = `<span>${a}</span> <span class="badge bg-secondary ms-3 area-badge">確認中...</span>`;
+    btn.onclick = () => showInputForm(a);
+    container.appendChild(btn);
+  });
+  updateAreaButtonsBadge();
+}
+
+function updateAreaButtonsBadge() {
+  const date = document.getElementById('commonDate').value;
+  if (!date) return;
+  document.querySelectorAll('.area-badge').forEach(badge => {
+    badge.className = 'badge bg-secondary ms-3 area-badge'; badge.innerText = '確認中...';
+  });
+  getScriptRun(savedData => {
+    // 🌟 以下の if文ブロックを書き換えます
+    if (savedData && savedData.length > 0) { 
+      if (savedData[0].weather) document.getElementById('commonWeather').value = savedData[0].weather; 
+      if (savedData[0].staff) document.getElementById('commonStaff').value = savedData[0].staff;
+    }
+    const areas = [...new Set(masterData.filter(row => row[0] === currentSiteName && row[1] === currentBuilding).map(row => row[2]))];
+    areas.forEach(area => {
+      const areaMaster = masterData.filter(row => row[0] === currentSiteName && row[1] === currentBuilding && row[2] === area);
+      const eqRequiredMap = {};
+      areaMaster.forEach(row => {
+        const eqName = row[3]; const type = row[4]; let itemsCount = 0;
+        if (type === 'Refrigerator' || type === 'Ref_V') {
+          const items = row[5] ? row[5].split(/[、,]/) : ["低圧","高圧","油面","電流"]; itemsCount = items.length;
+        } else { itemsCount = 1; }
+        if (!eqRequiredMap[eqName]) eqRequiredMap[eqName] = 0;
+        eqRequiredMap[eqName] += itemsCount;
+      });
+      const areaSavedData = savedData.filter(d => d.area === area);
+      const eqSavedMap = {}; const uniqueSavedItems = new Set();
+      areaSavedData.forEach(d => {
+        const key = `${d.no}-${d.item}`;
+        if (!uniqueSavedItems.has(key)) { uniqueSavedItems.add(key); if (!eqSavedMap[d.no]) eqSavedMap[d.no] = 0; eqSavedMap[d.no]++; }
+      });
+      let unfinishedEqCount = 0;
+      for (const eqName in eqRequiredMap) {
+        if ( (eqSavedMap[eqName] || 0) < eqRequiredMap[eqName] ) { unfinishedEqCount++; }
+      }
+      const btn = document.getElementById(`area-btn-${area}`);
+      if (btn) {
+        const badgeEl = btn.querySelector('.area-badge');
+        if (badgeEl) {
+          if (unfinishedEqCount > 0) { badgeEl.className = 'badge bg-danger ms-3 area-badge'; badgeEl.innerText = `未完了: ${unfinishedEqCount}台`; }
+          else { badgeEl.className = 'badge bg-success ms-3 area-badge'; badgeEl.innerText = '入力完了'; }
+        }
+      }
+    });
+  }).getBuildingData(date, currentSiteName, currentBuilding,currentSaveSsId);
+}
+
+function showInputForm(areaName) {
+  if (!document.getElementById('commonStaff').value) { alert("先に担当者を選択してください"); return; }
+  currentArea = areaName; hideAllViews();
+  document.getElementById('formView').style.display = 'block';
+  document.getElementById('displayLocation').innerText = currentBuilding + " / " + currentArea;
+  generateForm();
+}
+
+function generateForm() {
+  const container = document.getElementById('formContainer');
+  container.innerHTML = '';
+  const myConfig = masterData.filter(row => row[0] === currentSiteName && row[1] === currentBuilding && row[2] === currentArea);
+  const equipmentNames = [...new Set(myConfig.map(row => row[3]))];
+  
+  equipmentNames.forEach(eqName => {
+    const itemsOfEq = myConfig.filter(row => row[3] === eqName);
+    const type = itemsOfEq[0][4]; 
+    const isRef = (type === 'Refrigerator' || type === 'Ref_V');
+
+    let html = `<div class="card p-2 mb-3">
+                 <div class="d-flex justify-content-between align-items-center mb2 border-bottom pb-2">  
+                  <div class="label-title text-primary">【${eqName}】 <span id="badge-${eqName}" class="badge bg-secondary ms-2 eq-badge"></span></div>
+                   <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="stop-${eqName}" onchange="autoFillZero('${eqName}',this.checked)">
+                    <label class="form-check-label small text-danger fw-bold" for="stop-${eqName}">停止(一括0)</label>
+                   </div>
+                </div>
+                <div class="scrollable-table mt-2">`;
+
+    if (isRef) {
+      html += `<table class="table table-sm table-bordered align-middle text-center mb-0">`;
+      const targetItems = itemsOfEq[0][5] ? itemsOfEq[0][5].split(/[、,]/) : ["低圧","高圧","油面","電流"];
+      const parsedItems = targetItems.map(it => { const parts = it.split('#'); return { displayName:parts[0], groupTag:parts[1] || "" }; });
+      html += `<thead class="table-light"><tr><th>対象</th>${parsedItems.map(it => `<th>${it.displayName}</th>`).join('')}</tr></thead><tbody>`;
+      const oilLevels = [{ label: '█', value: '100%' }, { label: '▅', value: '75%' }, { label: '▄', value: '50%' }, { label: '▃', value: '25%' }, { label: '＿', value: '0%' }];
+
+      itemsOfEq.forEach((item, idx) => {
+        html += `<tr><th class="table-light">現況</th>`;
+        parsedItems.forEach(it => {
+          const isLevelGauge = it.displayName.includes("油面")||it.displayName.includes("液面");
+          const isLongInput = it.displayName.includes("時間");
+          const isVibration = it.displayName.includes("振動") || it.displayName.includes("音");
+          const isDefrost = it.displayName.includes("デフロスト");
+
+          if (isLevelGauge) {
+            html += `<td><div class="btn-group">${oilLevels.map((lvl, lIdx) => `
+                <input type="radio" class="btn-check data-input" name="level-${eqName}-${idx}-${it.displayName}" id="l-${eqName}-${idx}-${it.displayName}-${lIdx}" value="${lvl.value}" data-name="${eqName}" data-item="${it.displayName}">
+                <label class="btn btn-outline-secondary p-0" for="l-${eqName}-${idx}-${it.displayName}-${lIdx}">${lvl.label}</label>`).join('')}</div></td>`;
+          } else if (isVibration) {
+            html += `<td><select class="form-select form-select-sm data-input" data-name="${eqName}" data-item="${it.displayName}"><option value="無" selected>無</option><option value="有">有</option></select></td>`;
+          } else if (isDefrost) {
+            html += `<td><select class="form-select form-select-sm data-input select-text-fit" data-name="${eqName}" data-item="${it.displayName}"><option value="停止中" selected>停止中</option><option value="運転中">運転中</option></select></td>`;
+          } else {
+            html += `<td><input type="number" step="0.01" class="form-control form-control-sm data-input ${isLongInput ? 'input-long' : ''}" data-name="${eqName}" data-item="${it.displayName}" data-group="${it.groupTag}" ${it.groupTag ? 'oninput="syncGroupValues(this)"' : ''}></td>`;
+          }
+        });
+        html += `</tr>`;
+      });
+    } else {
+      html += `<table class="table table-sm table-bordered align-middle text-center mb-0 mx-auto" style="width: auto; min-width: 30%; max-width: 100%;">`;
+      html += `<thead class="table-light"><tr>${itemsOfEq.map(it => `<th>${it[3]}</th>`).join('')}</tr></thead><tbody><tr>`;
+      itemsOfEq.forEach(it => { html += `<td><input type="number" step="0.1" class="form-control form-control-sm data-input" data-name="${it[3]}" data-item="指針"></td>`; });
+      html += `</tr>`;
+    }
+    html += `</tbody></table>`;
+    if (currentBuilding === "ノーザン棟" && (eqName.includes("湿度"))) { html += `<div class="text-danger small mt-2 text-center fw-bold">※LOの場合は999と入力</div>`; }
+    if (currentBuilding === "ノーザン棟" && currentArea==="冷凍機") { html += `<div class="text-danger small mt-2 text-center fw-bold">※デフロスト時は999と入力</div>`; }
+    html+=`</div></div>`;
+    container.insertAdjacentHTML('beforeend', html);
+  });
+  const memoHtml = `
+    <div class="card p-3 mt-4 mb-3 bg-light shadow-sm" style="border-left: 4px solid #6c757d;">
+      <label class="small text-muted fw-bold mb-2">【${currentBuilding} 備考】</label>
+      <input type="text" id="memo-${currentArea}" class="form-control data-input-memo" data-name="${currentArea}_備考" data-item="備考" placeholder="特記事項があれば入力してください" autocomplete="off">
+    </div>`;
+  container.insertAdjacentHTML('beforeend', memoHtml);
+
+  document.querySelectorAll('.data-input').forEach(el => {
+    el.addEventListener('input', updateUnfilledCount); el.addEventListener('change', updateUnfilledCount);
+  });
+  fetchSavedData();
+}
+
+function fetchSavedData() {
+  const date = document.getElementById('commonDate').value;
+  const mainBadge = document.getElementById('unfilledBadge');
+  mainBadge.style.display = 'inline-block'; mainBadge.className = 'badge bg-secondary fs-6 ms-2'; mainBadge.innerHTML = 'データ確認中...';
+
+   getScriptRun(data => {
+   
+    if (data && data.length > 0) {
+      if (data[0].weather) document.getElementById('commonWeather').value = data[0].weather; 
+      if (data[0].staff) document.getElementById('commonStaff').value = data[0].staff;
+       
+      data.forEach(d => {
+        const d_no = d.no ? d.no.trim() : "";
+        const d_item = d.item ? d.item.trim() : "";        
+        const els = document.querySelectorAll(`.data-input[data-name="${d.no}"][data-item="${d.item}"], .data-input-memo[data-name="${d.no}"][data-item="${d.item}"]`);
+        els.forEach(el =>
+         { if (el.type === 'radio') {
+            let compareVal = d.value;
+            if (compareVal === "1") compareVal = "100%";
+            else if (compareVal === "0.75") compareVal = "75%";
+            else if (compareVal === "0.5") compareVal = "50%";
+            else if (compareVal === "0.25") compareVal = "25%";
+            else if (compareVal === "0") compareVal = "0%";
+
+           if (el.value === compareVal) el.checked = true;
+            }else {
+             el.value = d.value; }
+          });
+      });
+    }
+    updateUnfilledCount();
+  }).getDailyData(date, currentSiteName, currentBuilding, currentArea,currentSaveSsId);
+}
+
+function updateUnfilledCount() {
+  let unfilledEquipmentTotal = 0;
+  const eqNames = [...new Set([...document.querySelectorAll('.data-input')].map(el => el.dataset.name))];
+  let totalCount = 0;
+  
+  eqNames.forEach(eq => {
+    let eqMissingCount = 0; const radioGroups = new Set(); const checkedRadios = new Set();
+    document.querySelectorAll(`.data-input[data-name="${eq}"]`).forEach(el => {
+      if (el.type === 'radio') { radioGroups.add(el.name); if (el.checked) checkedRadios.add(el.name); } 
+      else { if (el.value === '') { eqMissingCount++; totalCount++; } }
+    });
+    const radioMissing = (radioGroups.size - checkedRadios.size);
+    eqMissingCount += radioMissing; totalCount += radioMissing;
+    
+    const eqBadge = document.getElementById(`badge-${eq}`);
+    if (eqBadge) {
+      if (eqMissingCount > 0) { eqBadge.className = 'badge bg-danger ms-2 eq-badge'; eqBadge.innerText = `未入力あり`; unfilledEquipmentTotal++; } 
+      else { eqBadge.className = 'badge bg-success ms-2 eq-badge'; eqBadge.innerText = '入力完了'; }
+    }
+  });
+
+  const mainBadge = document.getElementById('unfilledBadge');
+  if (totalCount > 0) { mainBadge.className = 'badge bg-danger fs-6 ms-2'; mainBadge.innerHTML = `全体未入力: <span id="unfilledCount">${totalCount}</span>件`; } 
+  else { mainBadge.className = 'badge bg-success fs-6 ms-2'; mainBadge.innerHTML = 'すべて入力完了'; }
+}
+
+function confirmSubmit() {
+  const modalEl = document.getElementById('confirmSubmitModal');
+  const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);  
+  modal.show();
+}
+
+function executeSubmit() {
+  const modalEl = document.getElementById('confirmSubmitModal');
+  const modal = bootstrap.Modal.getInstance(modalEl); if (modal) modal.hide();
+  const staff = document.getElementById('commonStaff').value;
+  const date = document.getElementById('commonDate').value;
+  const weather = document.getElementById('commonWeather').value;
+  
+  document.getElementById('saveSpinner').style.display = 'inline-block';
+  document.getElementById('saveBtn').disabled = true;
+
+  const results = [];
+  document.querySelectorAll('.data-input, .data-input-memo').forEach(el => {
+    if (el.type === 'radio' && !el.checked) return;
+    if (el.value) results.push({ date: date, site: currentSiteName, staff: staff, weather: weather, building: currentBuilding, area: currentArea, no: el.dataset.name, item: el.dataset.item, value: el.value });
+  });
+
+  getScriptRun(msg => {
+    document.getElementById('saveSpinner').style.display = 'none'; document.getElementById('saveBtn').disabled = false;
+    document.getElementById('resultModalBody').innerText = msg;
+    const resModalEl = document.getElementById('resultModal');
+    const resModal = bootstrap.Modal.getInstance(resModalEl) || new bootstrap.Modal(resModalEl);    
+    resModal.show();
+  }).saveData(results,currentSaveSsId);
+}
+
+function syncGroupValues(sender) {
+  const group = sender.dataset.group; if (!group) return;
+  const val = sender.value;
+  const allInputs = document.querySelectorAll('.data-input[data-group="' + group + '"]');
+  allInputs.forEach(el => { if (el !== sender) { el.value = val; updateUnfilledCount(); } });
+}
+
+function createMenuBtn(text, onClick) {
+  const btn = document.createElement('button'); btn.className = "btn btn-outline-dark btn-lg py-4 btn-step"; btn.innerText = text; btn.onclick = onClick; return btn;
+}
+
+function hideAllViews() {
+  document.querySelector('.container').classList.remove('container-wide');
+  const views=['loginView', 'menuView', 'buildingSelectView', 'areaSelectView', 'formView', 'reportTableView','listTableView'];
+  views.forEach(id => { const el=document.getElementById(id); if(el){ el.style.setProperty('display','none','important');} });
+}
+
+function backToMenu() { hideAllViews(); document.getElementById('menuView').style.display = 'block'; }
+
+function autoFillZero(eqName, isStopped) {
+  if (!isStopped) return; 
+  document.querySelectorAll(`.data-input[data-name="${eqName}"]`).forEach(el => {
+    const itemName = el.dataset.item || "";
+    if (!itemName.includes("時間") && !itemName.includes("温度")) {
+      if (el.tagName === "SELECT") { el.value = itemName.includes("デフロスト") ? "停止中" : "無"; } 
+      else if (el.type === "number") { el.value = 0; if (el.dataset.group) syncGroupValues(el); } 
+      else if (el.type === "radio") { if ((itemName.includes("液面")|| itemName.includes("油面")) && el.value === "0%") { el.checked = true; } }
+    }
+  });
+  updateUnfilledCount();
+}   
+
+function showReportTable(type) {
+  currentReportType = type; 
+  hideAllViews();
+  document.querySelector('.container').classList.add('container-wide');
+  document.getElementById('reportTableView').style.setProperty('display', 'block', 'important');
+  document.getElementById('reportTableTitle').innerText = (type === '運転日報') ? '運転日報 確認' : '大伸運輸_電気・水道 確認';
+  
+  const dateInput = document.getElementById('reportTableDate');
+  if (!dateInput.value) { dateInput.value = document.getElementById('commonDate').value || new Date().toISOString().split('T')[0]; }
+  
+  reloadReportTable();
+}
+
+function reloadReportTable() {
+  const date = document.getElementById('reportTableDate').value;
+  document.getElementById('reportTableSpinner').style.display = 'block';
+  document.getElementById('reportTableContent').innerHTML = '';
+  
+  getScriptRun(renderTableData).getReportTableData(date, currentSiteName, currentReportType,currentSaveSsId);
+}
+
+function showListTable() {
+  hideAllViews();
+  document.querySelector('.container').classList.add('container-wide');
+  document.getElementById('listTableView').style.setProperty('display', 'block', 'important');
+  
+  const dateInput = document.getElementById('listTableDate');
+  if (!dateInput.value) { dateInput.value = document.getElementById('commonDate').value || new Date().toISOString().split('T')[0]; }
+  
+  loadListTable();
+}
+
+function loadListTable() {
+  const date = document.getElementById('listTableDate').value;
+  const sheetName = document.getElementById('listTableSelect').value;
+  document.getElementById('listTableSpinner').style.display = 'block';
+  document.getElementById('listTableContent').innerHTML = '';
+  
+  getScriptRun(renderTableData).getListTableData(date, currentSiteName, sheetName,currentSaveSsId);
+}
+
+// 大伸運輸の一時データを保持する変数
+//let daishinTableData = [];
+
+function renderTableData(response) {
+  document.getElementById(response.spinnerId).style.display = 'none';
+  if (!response.success) {
+    document.getElementById(response.containerId).innerHTML = `<tr><td class="text-danger p-3">エラー: ${response.error}</td></tr>`;
+    return;
+  }
+
+  const matrix = response.data;
+  let html = "";
+  
+  let isDriverLog = (currentReportType === '運転日報' && response.containerId === 'reportTableContent');
+  let isDaishin = currentReportType.includes('大伸運輸') && response.containerId === 'reportTableContent';
+  let isListView = (response.containerId === 'listTableContent');
+
+  let noBorderRows = [0, 1];   
+  let useBoxArea = false;      
+
+  if (isDriverLog) {
+    noBorderRows = [0, 1, 27, 28, 29, 30, 48]; 
+    useBoxArea = true; 
+  } else {
+    noBorderRows = [0, 1]; 
+  }
+
+  if (isDaishin) {
+    daishinTableData = JSON.parse(JSON.stringify(matrix)); 
+  }
+
+  let g2HoursLimit = 0;
+  if (isDriverLog && matrix[1] && matrix[1][6]) {
+    const g2Text = matrix[1][6].toString();
+    const g2Num = parseFloat(g2Text.replace(/[^0-9.]/g, "")) || 0; 
+    g2HoursLimit = g2Num * 24; 
+  }
+
+  matrix.forEach((row, rowIndex) => {
+
+    // 🌟追加：運転日報の場合、54行目（インデックス53）以降は処理せず切り捨てる！
+    if (isDriverLog && rowIndex > 53) return;
+
+    // =========================================================================
+    // 【運転日報のみ】タイトル行（1行目、29行目）の結合処理
+    // =========================================================================
+    if (isDriverLog && (rowIndex === 0 || rowIndex === 28)) {
+      html += "<tr>";
+      let skip = 0;
+      row.forEach((cell, colIndex) => {
+        // 🌟追加：L列（インデックス11）より右は表示しない
+        if (colIndex > 11) return;
+
+        if (skip > 0) { skip--; return; }
+        const cellText = cell ? cell.toString().trim() : "";
+        if (cellText !== "") {
+          let maxColspan = 5; let colspan = 1;
+          for (let j = colIndex + 1; j <= 11; j++) { // 🌟最大L列(11)までで結合チェックを止める
+            if (colspan >= maxColspan) break;
+            const nextCell = row[j] ? row[j].toString().replace(/[\s ]+/g, "") : "";
+            if (nextCell === "") { colspan++; } else { break; }
+          }
+          html += `<th colspan="${colspan}" class="text-center" style="border: none !important; background-color: #fff !important; font-size: 1.1rem; padding: 10px; white-space: nowrap;">${cellText}</th>`;
+          skip = colspan - 1;
+        } else {
+          html += `<th style="border: none !important; background-color: transparent !important; padding: 4px 6px;"></th>`;
+        }
+      });
+      html += "</tr>";
+      return; 
+    }
+
+    // =========================================================================
+    // 【運転日報のみ】ヘッダー作成ロジック
+    // =========================================================================
+    if (isDriverLog && (rowIndex === 2 || rowIndex === 3 || rowIndex === 44 || rowIndex === 45)) {
+      if (rowIndex === 2 || rowIndex === 3) {
+        if (rowIndex === 2) {
+          html += "<tr class='table-light fw-bold text-center' style='background-color: #f2f2f2 !important;'>";
+          row.forEach((cell, colIndex) => {
+            if (colIndex > 11) return; // 🌟追加：L列（インデックス11）より右は表示しない
+
+            if ([3, 4, 8, 9, 10, 11].includes(colIndex)) {
+              html += `<th rowspan="2" class="align-middle" style="border: 1px solid #aaa !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
+            } else if (colIndex === 5) {
+              html += `<th colspan="3" class="align-middle" style="border: 1px solid #aaa !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">運転時間</th>`;
+            } else if (colIndex === 6 || colIndex === 7) {
+              return;
+            } else {
+              html += `<th class="align-middle" style="border: 1px solid #aaa !important; padding: 4px; font-size: 0.9rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
+            }
+          });
+          html += "</tr>";
+        } else if (rowIndex === 3) {
+          html += "<tr class='table-light fw-bold text-center' style='background-color: #f2f2f2 !important;'>";
+          row.forEach((cell, colIndex) => {
+            if (colIndex > 11) return; // 🌟追加：L列（インデックス11）より右は表示しない
+
+            if ([3, 4, 8, 9, 10, 11].includes(colIndex)) return;
+            html += `<th class="align-middle" style="border: 1px solid #aaa !important; padding: 4px; font-size: 0.85rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
+          });
+          html += "</tr>";
+        }
+      } else if (rowIndex === 44 || rowIndex === 45) {
+        if (rowIndex === 44) {
+          html += "<tr class='table-light fw-bold text-center' style='background-color: #f2f2f2 !important;'>";
+          row.forEach((cell, colIndex) => {
+            if (colIndex > 8) {
+              html += `<th style="border: none !important; background-color: #fff !important;"></th>`;
+              return;
+            }
+            if ([0, 1, 2, 3, 4, 5, 8].includes(colIndex)) {
+              html += `<th rowspan="2" class="align-middle" style="border: 1px solid #aaa !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
+            } else if (colIndex === 6) {
+              html += `<th colspan="2" class="align-middle" style="border: 1px solid #aaa !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">運転時間</th>`;
+            } else if (colIndex === 7) {
+              return;
+            }
+          });
+          html += "</tr>";
+        } else if (rowIndex === 45) {
+          html += "<tr class='table-light fw-bold text-center' style='background-color: #f2f2f2 !important;'>";
+          row.forEach((cell, colIndex) => {
+            if (colIndex > 8) {
+              html += `<th style="border: none !important; background-color: #fff !important;"></th>`;
+              return;
+            }
+            if ([0, 1, 2, 3, 4, 5, 7, 8].includes(colIndex)) return;
+            if (colIndex === 6) {
+              html += `<th class="align-middle" style="border: 1px solid #aaa !important; padding: 4px; font-size: 0.85rem; white-space: nowrap;">${row[6] ? row[6].toString().trim() : ""}</th>`;
+              html += `<th class="align-middle" style="border: 1px solid #aaa !important; padding: 4px; font-size: 0.85rem; white-space: nowrap;">${row[7] ? row[7].toString().trim() : ""}</th>`;
+              return;
+            }
+          });
+          html += "</tr>";
+        }
+      }
+      return; 
+    }
+
+    // =========================================================================
+    // 通常行の処理（大伸運輸、一覧、および日報のデータ行）
+    // =========================================================================
+    if (isDriverLog && rowIndex === 27) {
+      html += "<tr class='page-break-before'>";
+    } else {
+      html += "<tr>";
+    }
+
+    row.forEach((cell, colIndex) => {
+      // 🌟追加：通常データ行も、L列（インデックス11）より右は表示しない
+      if (isDriverLog && colIndex > 11) return; 
+      
+      let cellStr = cell ? cell.toString().trim() : ""; 
+      
+      let rawCellStr = cellStr.toUpperCase();
+      let isTrueData = (rawCellStr === 'TRUE' || rawCellStr === '✔' || rawCellStr === '1');
+      const isEmpty = cellStr.replace(/[\s ]+/g, "") === "" || cellStr === "FALSE"; 
+
+      if (isDaishin && rowIndex >= 2 && rowIndex <= 6) {
+        if (colIndex === 9) { 
+          html += `<td class="text-center" style="border: 1px solid #ccc !important; padding: 4px; background-color: #fff !important;">
+                     <input type="checkbox" id="daishin_chk_${rowIndex}" ${isTrueData ? 'checked' : ''} onchange="recalcDaishinRow(${rowIndex})">
+                   </td>`;
+          return;
+        }
+        if (colIndex === 11) { 
+          let numVal = parseFloat(cellStr.replace(/,/g, '')) || 0;
+          html += `<td class="text-end" style="border: 1px solid #ccc !important; padding: 2px; background-color: #fff !important;">
+                     <input type="number" id="daishin_price_${rowIndex}" value="${numVal}" style="width: 70px; text-align: right; border: 1px solid #ddd; padding: 2px;" onchange="recalcDaishinRow(${rowIndex})">
+                   </td>`;
+          return;
+        }
+        if (colIndex === 13) { 
+          let displayVal = (cellStr === "0" || cellStr === "FALSE" || !cellStr) ? "0" : cellStr;
+          html += `<th id="daishin_res_${rowIndex}" class="text-end fw-bold" style="border: 1px solid #ccc !important; padding: 4px; background-color: #f9f9f9 !important;">${displayVal}</th>`;
+          return;
+        }
+      }
+
+      if (isDaishin && rowIndex === 8 && colIndex === 13) {
+        html += `<th id="daishin_total_sum" class="text-end fw-bold text-danger" style="border: 1px solid #ccc !important; padding: 4px; background-color: #fff7f7 !important;">${cellStr}</th>`;
+        return;
+      }
+
+      const isNumber = !isEmpty && !isNaN(cellStr.replace(/,/g, '')) && !cellStr.includes("/") && !cellStr.includes("日") && !cellStr.includes("月") && !cellStr.includes("年");
+      const alignClass = isNumber ? "text-end" : "text-center";
+      const isNoBorderRow = noBorderRows.includes(rowIndex);
+      const isBoxArea = useBoxArea && (rowIndex >= 49 && rowIndex <= 52 && colIndex >= 4 && colIndex <= 10);
+
+      let borderStyle = "";
+      let bgStyle = "background-color: #fff !important;";
+      let textColorStyle = ""; 
+
+      if (isDriverLog) {
+        let curVal = parseFloat(cellStr.replace(/,/g, '')) || 0;
+        if (colIndex === 1 && rowIndex >= 4 && rowIndex <= 14 && curVal > 100) {
+          bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
+        }
+        else if (colIndex === 2 && rowIndex >= 4 && rowIndex <= 14 && curVal > 10) {
+          bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
+        }
+        else if (colIndex === 3 && rowIndex >= 4 && rowIndex <= 14) {
+          let eVal = parseFloat(row[4] ? row[4].toString().replace(/,/g, '') : "0") || 0; 
+          if (curVal < (eVal - 4) || curVal > (eVal + 4)) {
+            bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
+          }
+        }
+        else if (colIndex === 7 && rowIndex >= 4 && rowIndex <= 14 && g2HoursLimit > 0 && curVal > g2HoursLimit) {
+          bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
+        }
+        else if (colIndex === 8 && rowIndex >= 4 && rowIndex <= 14 && cellStr === "有") {
+          bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
+        }
+        else if (colIndex === 2 && rowIndex >= 31 && rowIndex <= 42) {
+          let bVal = parseFloat(row[1] ? row[1].toString().replace(/,/g, '') : "0") || 0; 
+          if (curVal > bVal) {
+            bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
+          }
+        }
+        else if (colIndex === 10 && rowIndex >= 31 && rowIndex <= 35) {
+          let jVal = parseFloat(row[9] ? row[9].toString().replace(/,/g, '') : "0") || 0; 
+          if (curVal < (jVal - 4) || curVal > (jVal + 4)) {
+            bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
+          }
+        }
+        else if ((rowIndex === 46 || rowIndex === 47) && (colIndex === 1 || colIndex === 2) && curVal > 2) {
+          bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
+        }
+        else if ((rowIndex === 46 || rowIndex === 47) && (colIndex === 3 || colIndex === 4) && curVal > 1) {
+          bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
+        }
+      }
+
+      if (isListView) {
+        if (rowIndex <= 2) {
+          borderStyle = "border: none !important;"; bgStyle = "background-color: transparent !important;";
+        } else if (rowIndex >= 3 && rowIndex <= 34) {
+          borderStyle = "border: 1px solid #ccc !important;";
+        } else {
+          borderStyle = "border: none !important; background-color: transparent !important;";
+        }
+      } 
+      else if (isDaishin) {
+        if (rowIndex === 34) {
+          borderStyle = "border: none !important;"; bgStyle = "background-color: transparent !important;";
+        } else {
+          if (rowIndex >= 2 && rowIndex <= 33 && [0, 1, 2, 5, 6].includes(colIndex)) {
+            borderStyle = "border: 1px solid #ccc !important;";
+          } else {
+            if (isEmpty) {
+              borderStyle = "border: none !important;"; bgStyle = "background-color: transparent !important;"; cellStr = ""; 
+            } else if (isNoBorderRow) {
+              borderStyle = "border: none !important;";
+            } else {
+              borderStyle = "border: 1px solid #ccc !important;";
+            }
+          }
+        }
+      } 
+      else {
+        if (isBoxArea) {
+          borderStyle = "border: none !important; ";
+          if (rowIndex === 49) borderStyle += "border-top: 1px solid #ccc !important; ";
+          if (rowIndex === 52) borderStyle += "border-bottom: 1px solid #ccc !important; ";
+          if (colIndex === 4)  borderStyle += "border-left: 1px solid #ccc !important; ";
+          if (colIndex === 10) borderStyle += "border-right: 1px solid #ccc !important; ";
+          bgStyle = "background-color: transparent !important;";
+        } else if (isEmpty) {
+          borderStyle = "border: none !important;"; bgStyle = "background-color: transparent !important;";
+        } else if (isNoBorderRow) {
+          borderStyle = "border: none !important;";
+        } else {
+          borderStyle = "border: 1px solid #ccc !important;";
+        }
+      }
+
+      let cellStyle = `padding: 4px 6px; white-space: nowrap; ${borderStyle} ${bgStyle} ${textColorStyle}`;
+      html += `<td class="${alignClass}" style="${cellStyle}">${cellStr}</td>`;
+    });
+    html += "</tr>";
+  });
+  document.getElementById(response.containerId).innerHTML = html;
+}
+
+// 🌟 大伸運輸のリアルタイム再計算＆四捨五入＆一括保存完全同期ロジック
+function recalcDaishinRow(rowIndex) {
+  // 画面の入力コントロールを、行インデックス（2〜6）ベースで正確に取得
+  const chkBox = document.getElementById(`daishin_chk_${rowIndex}`);
+  const priceInput = document.getElementById(`daishin_price_${rowIndex}`);
+  const resTd = document.getElementById(`daishin_res_${rowIndex}`);
+  
+  if (!chkBox || !priceInput || !resTd) {
+    console.error("要素が見つかりません:", rowIndex);
+    return;
+  }
+
+  const isChecked = chkBox.checked;
+  const price = parseFloat(priceInput.value) || 0;
+  
+  // 使用量はC35セル (行インデックス34, 列インデックス2) から取得
+  let usage = 0;
+  if (daishinTableData && daishinTableData[34] && daishinTableData[34][2]) {
+    const c35ValueStr = daishinTableData[34][2].toString().replace(/,/g, '');
+    usage = parseFloat(c35ValueStr) || 0;
+  }
+
+  // 🌟 計算：チェックが入っていれば「単価 * 使用量」を四捨五入、入っていなければ無条件で「0」
+  const result = isChecked ? Math.round(price * usage) : 0;
+  
+  // 画面の該当行の請求額表示を即座に更新
+  resTd.innerText = result.toLocaleString();
+
+  // 🌟 3行目〜7行目（インデックス2〜6）のチェック状態を走査して全体の合計請求額（SUM）を算出
+  let totalSum = 0;
+  for (let r = 2; r <= 6; r++) {
+    const cBox = document.getElementById(`daishin_chk_${r}`);
+    const pInput = document.getElementById(`daishin_price_${r}`);
+    
+    // 処理中の行（r === rowIndex）であれば、画面の最新の値を使用する
+    if (r === rowIndex) {
+      if (isChecked) {
+        totalSum += result;
+      }
+    } else if (cBox && pInput && cBox.checked) {
+      // それ以外の行は現在のチェック状態から計算
+      const p = parseFloat(pInput.value) || 0;
+      totalSum += Math.round(p * usage);
+    }
+  }
+  
+  // 🌟 N9の合計額表示セル（daishin_total_sum）の金額を更新
+  const totalSumTd = document.getElementById('daishin_total_sum');
+  if (totalSumTd) {
+    totalSumTd.innerText = totalSum.toLocaleString();
+  }
+
+  // スプレッドシート（GAS側）に一括でデータを送って完全保存同期
+  const savePayload = [
+    {
+      rowIndex: rowIndex,
+      checked: isChecked,
+      price: price,
+      result: result
+    },
+    {
+      rowIndex: 8,          // N9セル (9行目) の合計金額も同時に上書き保存
+      checked: false,
+      price: 0,
+      result: totalSum
+    }
+  ];
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if(!res.success) {
+        alert("スプレッドシートへの反映に失敗しました: " + res.error);
+      }
+    })
+    .withFailureHandler(function(err) {
+      console.error("GAS通信エラー:", err);
+    })
+    .updateDaishinData(savePayload,currentSaveSsId);
+}
+
+ function openUrlInNewTab(url) {
+    window.open(url, '_blank');
+  }
+
+// =========================================================================
+// 🌟 印刷（PDF出力）用コントロール関数
+// =========================================================================
+
+// 用紙の向きを動的に設定する関数
+function setPrintPageStyle(orientation) {
+  let styleEl = document.getElementById('dynamicPrintStyle');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'dynamicPrintStyle';
+    document.head.appendChild(styleEl);
+  }
+  if (orientation === 'landscape') {
+    styleEl.innerHTML = '@page { size: A4 landscape; margin: 5mm; }';
+  } else {
+    styleEl.innerHTML = '@page { size: A4 portrait; margin: 12mm; }';
+  }
+}
+
+// 印刷実行
+function printReportTable() {
+  if (currentReportType === '大伸運輸' && document.getElementById('reportTableView').style.display !== 'none') {
+    // 📄 大伸運輸 (A4縦・2ページ分割)
+    setPrintPageStyle('portrait');
+    document.body.classList.add('printing-daishin');
+    setupDaishinPrintArea(); // 表を分割する処理
+    
+    window.print();
+    
+    // 印刷ダイアログが閉じたら元に戻す
+    document.body.classList.remove('printing-daishin');
+    cleanupDaishinPrintArea();
+
+  } else if (currentReportType === '運転日報' && document.getElementById('reportTableView').style.display !== 'none') {
+    // 📄 運転日報 (A4横)
+    setPrintPageStyle('landscape');
+    window.print();
+
+  } else {
+    // 📄 一覧表 (A4横)
+    setPrintPageStyle('landscape');
+    window.print();
+  }
+}
+
+// 🌟 大伸運輸の表を「A〜H列(1ページ目)」と「J〜N列(2ページ目)」に分割生成する
+function setupDaishinPrintArea() {
+  const originalTable = document.getElementById('reportTableContent');
+  
+  const printArea = document.createElement('div');
+  printArea.id = 'daishinPrintArea';
+  printArea.style.display = 'none'; // 通常時は隠しておく
+  
+  const table1 = document.createElement('table');
+  table1.className = 'custom-table';
+  
+  const table2 = document.createElement('table');
+  table1.className = 'custom-table';
+  table2.className = 'custom-table page-break-before'; // 2ページ目用に改ページ付与
+
+  const rows = originalTable.querySelectorAll('tr');
+  
+  rows.forEach((tr, rowIndex) => {
+    // 1ページ目: A〜H列 (インデックス0〜7)、1〜35行目 (rowIndex 0〜34)
+    if (rowIndex <= 34) {
+      const tr1 = document.createElement('tr');
+      tr1.className = tr.className;
+      const cells = tr.querySelectorAll('td, th');
+      cells.forEach((cell, colIndex) => {
+        if (colIndex <= 7) tr1.appendChild(cell.cloneNode(true));
+      });
+      table1.appendChild(tr1);
+    }
+    
+    // 2ページ目: J〜N列 (インデックス9〜13)、1〜10行目 (rowIndex 0〜9)
+    if (rowIndex <= 9) {
+      const tr2 = document.createElement('tr');
+      tr2.className = tr.className;
+      const cells = tr.querySelectorAll('td, th');
+      cells.forEach((cell, colIndex) => {
+        if (colIndex >= 9 && colIndex <= 13) {
+          const cloneCell = cell.cloneNode(true);
+          // 印刷時は入力欄(input)の枠を消して値だけを見せる工夫
+          const inputs = cloneCell.querySelectorAll('input');
+          inputs.forEach(inp => {
+            if (inp.type === 'number') {
+              inp.parentElement.innerHTML = inp.value ? Number(inp.value).toLocaleString() : "0";
+            }
+          });
+          tr2.appendChild(cloneCell);
+        }
+      });
+      table2.appendChild(tr2);
+    }
+  });
+
+  printArea.appendChild(table1);
+  printArea.appendChild(table2);
+  originalTable.parentNode.appendChild(printArea);
+}
+
+// 分割生成したエリアをお掃除
+function cleanupDaishinPrintArea() {
+  const printArea = document.getElementById('daishinPrintArea');
+  if (printArea) {
+    printArea.remove();
+  }
+}      
+</script>
+</body>
+</html>
