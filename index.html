@@ -100,20 +100,9 @@
       break-before: page !important;
     }
 
-    /* 大伸運輸の印刷時：元のテーブルを隠し、動的生成した印刷用エリアを表示 */
-    body.printing-daishin #reportTableContent {
-      display: none !important;
-    }
-    #daishinPrintArea {
-      display: block !important;
-    }
-
     /* ▼ 各画面の縮小率調整 ▼ */
     #reportTableContent {
       zoom: 0.70; /* 運転日報をページに収める調整 */
-    }
-    #daishinPrintArea {
-      zoom: 0.75; /* 大伸運輸をページに収める調整 */
     }
     #listTableContent {
       zoom: 0.50; /* 一覧表(A〜AE列)を1枚に押し込む */
@@ -147,7 +136,7 @@
        <button class="btn btn-outline-primary btn-lg py-4 btn-step" onclick="showBuildingSelection()">機械日報の入力</button>
       
        <button class="btn btn-outline-success btn-lg py-4 btn-step" onclick="showReportTable('運転日報')">運転日報（表で確認）</button>
-       <button class="btn btn-outline-info btn-lg py-4 btn-step" onclick="showReportTable('大伸運輸')">大伸運輸_電気・水道（表で確認）</button>
+       
        <button class="btn btn-outline-warning btn-lg py-4 btn-step" onclick="showListTable()">一覧表（運転時間 / 電気・水道）</button>
        <button class="btn btn-light btn-lg mt-3" onclick="logout()">ログアウト</button>
      </div>
@@ -296,8 +285,6 @@
 // ① 機械運転日報_報告書 のURL
 const reportSheetUrl = "https://docs.google.com/spreadsheets/d/1-cVBN94i6ewaCPUaLvd05I9sIsgme0oMuYUDH6tOVYM/edit?usp=sharing?single=true&gid=431557527";
 
-// ② 大伸運輸_電気・水道 のURL
-const daishinSheetUrl = "https://docs.google.com/spreadsheets/d/1-cVBN94i6ewaCPUaLvd05I9sIsgme0oMuYUDH6tOVYM/edit?usp=sharing?single=true&gid=1302333576";
 
 // 🌟 GAS本番環境(google.script.run)を最優先で使うための安全な判定
 function getScriptRun(successCallback) {
@@ -741,12 +728,11 @@ function autoFillZero(eqName, isStopped) {
   updateUnfilledCount();
 }   
 
-function showReportTable(type) {
-  currentReportType = type; 
+function showReportTable() {
   hideAllViews();
   document.querySelector('.container').classList.add('container-wide');
   document.getElementById('reportTableView').style.setProperty('display', 'block', 'important');
-  document.getElementById('reportTableTitle').innerText = (type === '運転日報') ? '運転日報 確認' : '大伸運輸_電気・水道 確認';
+  document.getElementById('reportTableTitle').innerText = '運転日報 確認';
   
   const dateInput = document.getElementById('reportTableDate');
   if (!dateInput.value) { dateInput.value = document.getElementById('commonDate').value || new Date().toISOString().split('T')[0]; }
@@ -759,7 +745,8 @@ function reloadReportTable() {
   document.getElementById('reportTableSpinner').style.display = 'block';
   document.getElementById('reportTableContent').innerHTML = '';
   
-  getScriptRun(renderTableData).getReportTableData(date, currentSiteName, currentReportType,currentSaveSsId);
+  // 引数から currentReportType を削除
+  getScriptRun(renderTableData).getReportTableData(date, currentSiteName, currentSaveSsId);
 }
 
 function showListTable() {
@@ -782,8 +769,6 @@ function loadListTable() {
   getScriptRun(renderTableData).getListTableData(date, currentSiteName, sheetName,currentSaveSsId);
 }
 
-// 大伸運輸の一時データを保持する変数
-//let daishinTableData = [];
 
 function renderTableData(response) {
   document.getElementById(response.spinnerId).style.display = 'none';
@@ -795,59 +780,41 @@ function renderTableData(response) {
   const matrix = response.data;
   let html = "";
   
-  let isDriverLog = (currentReportType === '運転日報' && response.containerId === 'reportTableContent');
-  let isDaishin = currentReportType.includes('大伸運輸') && response.containerId === 'reportTableContent';
-  let isListView = (response.containerId === 'listTableContent');
-
-  let noBorderRows = [0, 1];   
-  let useBoxArea = false;      
-
-  if (isDriverLog) {
-    noBorderRows = [0, 1, 27, 28, 29, 30, 48]; 
-    useBoxArea = true; 
-  } else {
-    noBorderRows = [0, 1]; 
-  }
-
-  if (isDaishin) {
-    daishinTableData = JSON.parse(JSON.stringify(matrix)); 
-  }
-
-  let g2HoursLimit = 0;
-  if (isDriverLog && matrix[1] && matrix[1][6]) {
-    const g2Text = matrix[1][6].toString();
-    const g2Num = parseFloat(g2Text.replace(/[^0-9.]/g, "")) || 0; 
-    g2HoursLimit = g2Num * 24; 
-  }
+  let isDriverLog = (response.containerId === 'reportTableContent'); // 運転日報ビュー
+  let isListView = (response.containerId === 'listTableContent');   // 一覧表ビュー
 
   matrix.forEach((row, rowIndex) => {
 
-    // 🌟追加：運転日報の場合、54行目（インデックス53）以降は処理せず切り捨てる！
-    if (isDriverLog && rowIndex > 53) return;
+    // 【表示範囲】運転日報の場合、28行目（インデックス27）までで処理を打ち切る
+    if (isDriverLog && rowIndex > 27) return;
 
     // =========================================================================
-    // 【運転日報のみ】タイトル行（1行目、29行目）の結合処理
+    // 1行目・2行目の長いタイトルや情報テキストの自動横結合（colspan）処理
     // =========================================================================
-    if (isDriverLog && (rowIndex === 0 || rowIndex === 28)) {
+    if (isDriverLog && (rowIndex === 0 || rowIndex === 1)) {
       html += "<tr>";
       let skip = 0;
       row.forEach((cell, colIndex) => {
-        // 🌟追加：L列（インデックス11）より右は表示しない
-        if (colIndex > 11) return;
-
+        if (colIndex > 14) return; // O列まで
         if (skip > 0) { skip--; return; }
+        
         const cellText = cell ? cell.toString().trim() : "";
         if (cellText !== "") {
-          let maxColspan = 5; let colspan = 1;
-          for (let j = colIndex + 1; j <= 11; j++) { // 🌟最大L列(11)までで結合チェックを止める
-            if (colspan >= maxColspan) break;
+          let colspan = 1;
+          for (let j = colIndex + 1; j <= 14; j++) {
             const nextCell = row[j] ? row[j].toString().replace(/[\s ]+/g, "") : "";
             if (nextCell === "") { colspan++; } else { break; }
           }
-          html += `<th colspan="${colspan}" class="text-center" style="border: none !important; background-color: #fff !important; font-size: 1.1rem; padding: 10px; white-space: nowrap;">${cellText}</th>`;
+          
+          let isMainTitle = (rowIndex === 0 && colIndex === 3);
+          let alignClass = isMainTitle ? "text-center fw-bold" : "text-center";
+          let fontSize = isMainTitle ? "font-size: 1.25rem;" : "font-size: 0.9rem;";
+          
+          html += `<td colspan="${colspan}" class="${alignClass}" style="border: none !important; background-color: transparent !important; padding: 6px; white-space: nowrap; ${fontSize}">${cellText}</td>`;
           skip = colspan - 1;
         } else {
-          html += `<th style="border: none !important; background-color: transparent !important; padding: 4px 6px;"></th>`;
+          // 🌟【追加】空セルには高さを維持するための見えない空白（&nbsp;）を入れる
+          html += `<td style="border: none !important; background-color: transparent !important; padding: 4px;">&nbsp;</td>`;
         }
       });
       html += "</tr>";
@@ -855,168 +822,103 @@ function renderTableData(response) {
     }
 
     // =========================================================================
-    // 【運転日報のみ】ヘッダー作成ロジック
+    // ヘッダー行（3行目・4行目）の結合（colspan/rowspan）処理
     // =========================================================================
-    if (isDriverLog && (rowIndex === 2 || rowIndex === 3 || rowIndex === 44 || rowIndex === 45)) {
-      if (rowIndex === 2 || rowIndex === 3) {
-        if (rowIndex === 2) {
-          html += "<tr class='table-light fw-bold text-center' style='background-color: #f2f2f2 !important;'>";
-          row.forEach((cell, colIndex) => {
-            if (colIndex > 11) return; // 🌟追加：L列（インデックス11）より右は表示しない
-
-            if ([3, 4, 8, 9, 10, 11].includes(colIndex)) {
-              html += `<th rowspan="2" class="align-middle" style="border: 1px solid #aaa !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
-            } else if (colIndex === 5) {
-              html += `<th colspan="3" class="align-middle" style="border: 1px solid #aaa !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">運転時間</th>`;
-            } else if (colIndex === 6 || colIndex === 7) {
-              return;
-            } else {
-              html += `<th class="align-middle" style="border: 1px solid #aaa !important; padding: 4px; font-size: 0.9rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
-            }
-          });
-          html += "</tr>";
-        } else if (rowIndex === 3) {
-          html += "<tr class='table-light fw-bold text-center' style='background-color: #f2f2f2 !important;'>";
-          row.forEach((cell, colIndex) => {
-            if (colIndex > 11) return; // 🌟追加：L列（インデックス11）より右は表示しない
-
-            if ([3, 4, 8, 9, 10, 11].includes(colIndex)) return;
-            html += `<th class="align-middle" style="border: 1px solid #aaa !important; padding: 4px; font-size: 0.85rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
-          });
-          html += "</tr>";
-        }
-      } else if (rowIndex === 44 || rowIndex === 45) {
-        if (rowIndex === 44) {
-          html += "<tr class='table-light fw-bold text-center' style='background-color: #f2f2f2 !important;'>";
-          row.forEach((cell, colIndex) => {
-            if (colIndex > 8) {
-              html += `<th style="border: none !important; background-color: #fff !important;"></th>`;
-              return;
-            }
-            if ([0, 1, 2, 3, 4, 5, 8].includes(colIndex)) {
-              html += `<th rowspan="2" class="align-middle" style="border: 1px solid #aaa !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
-            } else if (colIndex === 6) {
-              html += `<th colspan="2" class="align-middle" style="border: 1px solid #aaa !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">運転時間</th>`;
-            } else if (colIndex === 7) {
-              return;
-            }
-          });
-          html += "</tr>";
-        } else if (rowIndex === 45) {
-          html += "<tr class='table-light fw-bold text-center' style='background-color: #f2f2f2 !important;'>";
-          row.forEach((cell, colIndex) => {
-            if (colIndex > 8) {
-              html += `<th style="border: none !important; background-color: #fff !important;"></th>`;
-              return;
-            }
-            if ([0, 1, 2, 3, 4, 5, 7, 8].includes(colIndex)) return;
-            if (colIndex === 6) {
-              html += `<th class="align-middle" style="border: 1px solid #aaa !important; padding: 4px; font-size: 0.85rem; white-space: nowrap;">${row[6] ? row[6].toString().trim() : ""}</th>`;
-              html += `<th class="align-middle" style="border: 1px solid #aaa !important; padding: 4px; font-size: 0.85rem; white-space: nowrap;">${row[7] ? row[7].toString().trim() : ""}</th>`;
-              return;
-            }
-          });
-          html += "</tr>";
-        }
+    if (isDriverLog && (rowIndex === 2 || rowIndex === 3)) {
+      if (rowIndex === 2) {
+        html += "<tr class='table-light fw-bold text-center' style='background-color: #f2f2f2 !important;'>";
+        row.forEach((cell, colIndex) => {
+          if (colIndex > 14) return; // O列まで
+          
+          if (colIndex === 0) {
+            let text = matrix[3][0] ? matrix[3][0].toString().trim() : "機械No/基準値";
+            html += `<th rowspan="2" class="align-middle" style="border: 1px solid #777 !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">${text}</th>`;
+          } else if ([7, 8, 9, 10].includes(colIndex)) {
+            html += `<th rowspan="2" class="align-middle" style="border: 1px solid #777 !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
+          } else if (colIndex === 11) {
+            html += `<th colspan="4" class="align-middle" style="border: 1px solid #777 !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">運転時間</th>`;
+          } else if ([12, 13, 14].includes(colIndex)) {
+            return;
+          } else {
+            html += `<th class="align-middle" style="border: 1px solid #777 !important; padding: 4px; font-size: 0.9rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
+          }
+        });
+        html += "</tr>";
+      } else if (rowIndex === 3) {
+        html += "<tr class='table-light fw-bold text-center' style='background-color: #f2f2f2 !important;'>";
+        row.forEach((cell, colIndex) => {
+          if (colIndex > 14) return;
+          if ([0, 7, 8, 9, 10].includes(colIndex)) return;
+          html += `<th class="align-middle" style="border: 1px solid #777 !important; padding: 4px; font-size: 0.85rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
+        });
+        html += "</tr>";
       }
-      return; 
+      return;
     }
 
     // =========================================================================
-    // 通常行の処理（大伸運輸、一覧、および日報のデータ行）
+    // データ行（通常行）の処理
     // =========================================================================
-    if (isDriverLog && rowIndex === 27) {
-      html += "<tr class='page-break-before'>";
-    } else {
-      html += "<tr>";
-    }
+    html += "<tr>";
 
     row.forEach((cell, colIndex) => {
-      // 🌟追加：通常データ行も、L列（インデックス11）より右は表示しない
-      if (isDriverLog && colIndex > 11) return; 
+      if (isDriverLog && colIndex > 14) return; // O列まで
       
       let cellStr = cell ? cell.toString().trim() : ""; 
-      
-      let rawCellStr = cellStr.toUpperCase();
-      let isTrueData = (rawCellStr === 'TRUE' || rawCellStr === '✔' || rawCellStr === '1');
       const isEmpty = cellStr.replace(/[\s ]+/g, "") === "" || cellStr === "FALSE"; 
+      if (isEmpty) cellStr = ""; // 空白は完全に空文字として扱う
 
-      if (isDaishin && rowIndex >= 2 && rowIndex <= 6) {
-        if (colIndex === 9) { 
-          html += `<td class="text-center" style="border: 1px solid #ccc !important; padding: 4px; background-color: #fff !important;">
-                     <input type="checkbox" id="daishin_chk_${rowIndex}" ${isTrueData ? 'checked' : ''} onchange="recalcDaishinRow(${rowIndex})">
-                   </td>`;
-          return;
+      // 5行目〜16行目のB列〜O列を縦に2行分結合する処理
+      if (isDriverLog && rowIndex >= 4 && rowIndex <= 15) {
+        if (colIndex >= 1 && colIndex <= 14) { 
+          if (rowIndex % 2 === 0) {
+            let isNumber = !isEmpty && !isNaN(cellStr.replace(/,/g, '')) && !cellStr.includes("/") && !cellStr.includes("日") && !cellStr.includes("月") && !cellStr.includes("年");
+            let alignClass = isNumber ? "text-end" : "text-center";
+            let cellStyle = `padding: 4px 6px; white-space: nowrap; border: 1px solid #777 !important; background-color: #fff !important;`;
+            
+            // 🌟【追加】空セルには高さを維持するための見えない空白（&nbsp;）を入れる
+            let displayStr = cellStr === "" ? "&nbsp;" : cellStr;
+            html += `<td rowspan="2" class="${alignClass} align-middle" style="${cellStyle}">${displayStr}</td>`;
+          }
+          return; 
         }
-        if (colIndex === 11) { 
-          let numVal = parseFloat(cellStr.replace(/,/g, '')) || 0;
-          html += `<td class="text-end" style="border: 1px solid #ccc !important; padding: 2px; background-color: #fff !important;">
-                     <input type="number" id="daishin_price_${rowIndex}" value="${numVal}" style="width: 70px; text-align: right; border: 1px solid #ddd; padding: 2px;" onchange="recalcDaishinRow(${rowIndex})">
-                   </td>`;
-          return;
-        }
-        if (colIndex === 13) { 
-          let displayVal = (cellStr === "0" || cellStr === "FALSE" || !cellStr) ? "0" : cellStr;
-          html += `<th id="daishin_res_${rowIndex}" class="text-end fw-bold" style="border: 1px solid #ccc !important; padding: 4px; background-color: #f9f9f9 !important;">${displayVal}</th>`;
-          return;
-        }
-      }
-
-      if (isDaishin && rowIndex === 8 && colIndex === 13) {
-        html += `<th id="daishin_total_sum" class="text-end fw-bold text-danger" style="border: 1px solid #ccc !important; padding: 4px; background-color: #fff7f7 !important;">${cellStr}</th>`;
-        return;
       }
 
       const isNumber = !isEmpty && !isNaN(cellStr.replace(/,/g, '')) && !cellStr.includes("/") && !cellStr.includes("日") && !cellStr.includes("月") && !cellStr.includes("年");
       const alignClass = isNumber ? "text-end" : "text-center";
-      const isNoBorderRow = noBorderRows.includes(rowIndex);
-      const isBoxArea = useBoxArea && (rowIndex >= 49 && rowIndex <= 52 && colIndex >= 4 && colIndex <= 10);
 
       let borderStyle = "";
       let bgStyle = "background-color: #fff !important;";
       let textColorStyle = ""; 
 
       if (isDriverLog) {
-        let curVal = parseFloat(cellStr.replace(/,/g, '')) || 0;
-        if (colIndex === 1 && rowIndex >= 4 && rowIndex <= 14 && curVal > 100) {
-          bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
+        if (rowIndex >= 4 && rowIndex <= 15) {
+          // ① 5行目-16行目のA列のみ
+          borderStyle = "border: 1px solid #777 !important;";
+          bgStyle = "background-color: #fff !important;";
+        } 
+        else if ((rowIndex >= 18 && rowIndex <= 19 && colIndex >= 0 && colIndex <= 3) || 
+                 (rowIndex >= 18 && rowIndex <= 20 && colIndex >= 5 && colIndex <= 8)) {
+          // ② A19:D20 および F19:I21
+          borderStyle = "border: 1px solid #777 !important;";
+          bgStyle = "background-color: #fff !important;";
+        } 
+        else if (rowIndex >= 18 && rowIndex <= 21 && colIndex >= 10 && colIndex <= 14) {
+          // ③ A23:E27 は大外枠のみ罫線を描く
+          let t = (rowIndex === 18) ? "1px solid #777" : "none";
+          let b = (rowIndex === 21) ? "1px solid #777" : "none";
+          let l = (colIndex === 10) ? "1px solid #777" : "none";
+          let r = (colIndex === 14) ? "1px solid #777" : "none";
+          borderStyle = `border-top: ${t} !important; border-bottom: ${b} !important; border-left: ${l} !important; border-right: ${r} !important;`;
+          bgStyle = "background-color: #fff !important;";
+        } 
+        else {
+          // 指定外のエリアは罫線なし
+          borderStyle = "border: none !important;";
+          bgStyle = "background-color: transparent !important;";
         }
-        else if (colIndex === 2 && rowIndex >= 4 && rowIndex <= 14 && curVal > 10) {
-          bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
-        }
-        else if (colIndex === 3 && rowIndex >= 4 && rowIndex <= 14) {
-          let eVal = parseFloat(row[4] ? row[4].toString().replace(/,/g, '') : "0") || 0; 
-          if (curVal < (eVal - 4) || curVal > (eVal + 4)) {
-            bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
-          }
-        }
-        else if (colIndex === 7 && rowIndex >= 4 && rowIndex <= 14 && g2HoursLimit > 0 && curVal > g2HoursLimit) {
-          bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
-        }
-        else if (colIndex === 8 && rowIndex >= 4 && rowIndex <= 14 && cellStr === "有") {
-          bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
-        }
-        else if (colIndex === 2 && rowIndex >= 31 && rowIndex <= 42) {
-          let bVal = parseFloat(row[1] ? row[1].toString().replace(/,/g, '') : "0") || 0; 
-          if (curVal > bVal) {
-            bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
-          }
-        }
-        else if (colIndex === 10 && rowIndex >= 31 && rowIndex <= 35) {
-          let jVal = parseFloat(row[9] ? row[9].toString().replace(/,/g, '') : "0") || 0; 
-          if (curVal < (jVal - 4) || curVal > (jVal + 4)) {
-            bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
-          }
-        }
-        else if ((rowIndex === 46 || rowIndex === 47) && (colIndex === 1 || colIndex === 2) && curVal > 2) {
-          bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
-        }
-        else if ((rowIndex === 46 || rowIndex === 47) && (colIndex === 3 || colIndex === 4) && curVal > 1) {
-          bgStyle = "background-color: #fff3cd !important;"; textColorStyle = "color: #dc3545 !important; font-weight: bold;";
-        }
-      }
-
-      if (isListView) {
+      } 
+      else if (isListView) {
         if (rowIndex <= 2) {
           borderStyle = "border: none !important;"; bgStyle = "background-color: transparent !important;";
         } else if (rowIndex >= 3 && rowIndex <= 34) {
@@ -1025,129 +927,19 @@ function renderTableData(response) {
           borderStyle = "border: none !important; background-color: transparent !important;";
         }
       } 
-      else if (isDaishin) {
-        if (rowIndex === 34) {
-          borderStyle = "border: none !important;"; bgStyle = "background-color: transparent !important;";
-        } else {
-          if (rowIndex >= 2 && rowIndex <= 33 && [0, 1, 2, 5, 6].includes(colIndex)) {
-            borderStyle = "border: 1px solid #ccc !important;";
-          } else {
-            if (isEmpty) {
-              borderStyle = "border: none !important;"; bgStyle = "background-color: transparent !important;"; cellStr = ""; 
-            } else if (isNoBorderRow) {
-              borderStyle = "border: none !important;";
-            } else {
-              borderStyle = "border: 1px solid #ccc !important;";
-            }
-          }
-        }
-      } 
-      else {
-        if (isBoxArea) {
-          borderStyle = "border: none !important; ";
-          if (rowIndex === 49) borderStyle += "border-top: 1px solid #ccc !important; ";
-          if (rowIndex === 52) borderStyle += "border-bottom: 1px solid #ccc !important; ";
-          if (colIndex === 4)  borderStyle += "border-left: 1px solid #ccc !important; ";
-          if (colIndex === 10) borderStyle += "border-right: 1px solid #ccc !important; ";
-          bgStyle = "background-color: transparent !important;";
-        } else if (isEmpty) {
-          borderStyle = "border: none !important;"; bgStyle = "background-color: transparent !important;";
-        } else if (isNoBorderRow) {
-          borderStyle = "border: none !important;";
-        } else {
-          borderStyle = "border: 1px solid #ccc !important;";
-        }
-      }
 
       let cellStyle = `padding: 4px 6px; white-space: nowrap; ${borderStyle} ${bgStyle} ${textColorStyle}`;
-      html += `<td class="${alignClass}" style="${cellStyle}">${cellStr}</td>`;
+      
+      // 🌟【追加】空セルには高さを維持するための見えない空白（&nbsp;）を入れる
+      let displayStr = cellStr === "" ? "&nbsp;" : cellStr;
+      html += `<td class="${alignClass}" style="${cellStyle}">${displayStr}</td>`;
     });
     html += "</tr>";
   });
   document.getElementById(response.containerId).innerHTML = html;
 }
 
-// 🌟 大伸運輸のリアルタイム再計算＆四捨五入＆一括保存完全同期ロジック
-function recalcDaishinRow(rowIndex) {
-  // 画面の入力コントロールを、行インデックス（2〜6）ベースで正確に取得
-  const chkBox = document.getElementById(`daishin_chk_${rowIndex}`);
-  const priceInput = document.getElementById(`daishin_price_${rowIndex}`);
-  const resTd = document.getElementById(`daishin_res_${rowIndex}`);
-  
-  if (!chkBox || !priceInput || !resTd) {
-    console.error("要素が見つかりません:", rowIndex);
-    return;
-  }
-
-  const isChecked = chkBox.checked;
-  const price = parseFloat(priceInput.value) || 0;
-  
-  // 使用量はC35セル (行インデックス34, 列インデックス2) から取得
-  let usage = 0;
-  if (daishinTableData && daishinTableData[34] && daishinTableData[34][2]) {
-    const c35ValueStr = daishinTableData[34][2].toString().replace(/,/g, '');
-    usage = parseFloat(c35ValueStr) || 0;
-  }
-
-  // 🌟 計算：チェックが入っていれば「単価 * 使用量」を四捨五入、入っていなければ無条件で「0」
-  const result = isChecked ? Math.round(price * usage) : 0;
-  
-  // 画面の該当行の請求額表示を即座に更新
-  resTd.innerText = result.toLocaleString();
-
-  // 🌟 3行目〜7行目（インデックス2〜6）のチェック状態を走査して全体の合計請求額（SUM）を算出
-  let totalSum = 0;
-  for (let r = 2; r <= 6; r++) {
-    const cBox = document.getElementById(`daishin_chk_${r}`);
-    const pInput = document.getElementById(`daishin_price_${r}`);
-    
-    // 処理中の行（r === rowIndex）であれば、画面の最新の値を使用する
-    if (r === rowIndex) {
-      if (isChecked) {
-        totalSum += result;
-      }
-    } else if (cBox && pInput && cBox.checked) {
-      // それ以外の行は現在のチェック状態から計算
-      const p = parseFloat(pInput.value) || 0;
-      totalSum += Math.round(p * usage);
-    }
-  }
-  
-  // 🌟 N9の合計額表示セル（daishin_total_sum）の金額を更新
-  const totalSumTd = document.getElementById('daishin_total_sum');
-  if (totalSumTd) {
-    totalSumTd.innerText = totalSum.toLocaleString();
-  }
-
-  // スプレッドシート（GAS側）に一括でデータを送って完全保存同期
-  const savePayload = [
-    {
-      rowIndex: rowIndex,
-      checked: isChecked,
-      price: price,
-      result: result
-    },
-    {
-      rowIndex: 8,          // N9セル (9行目) の合計金額も同時に上書き保存
-      checked: false,
-      price: 0,
-      result: totalSum
-    }
-  ];
-
-  google.script.run
-    .withSuccessHandler(function(res) {
-      if(!res.success) {
-        alert("スプレッドシートへの反映に失敗しました: " + res.error);
-      }
-    })
-    .withFailureHandler(function(err) {
-      console.error("GAS通信エラー:", err);
-    })
-    .updateDaishinData(savePayload,currentSaveSsId);
-}
-
- function openUrlInNewTab(url) {
+function openUrlInNewTab(url) {
     window.open(url, '_blank');
   }
 
@@ -1172,93 +964,11 @@ function setPrintPageStyle(orientation) {
 
 // 印刷実行
 function printReportTable() {
-  if (currentReportType === '大伸運輸' && document.getElementById('reportTableView').style.display !== 'none') {
-    // 📄 大伸運輸 (A4縦・2ページ分割)
-    setPrintPageStyle('portrait');
-    document.body.classList.add('printing-daishin');
-    setupDaishinPrintArea(); // 表を分割する処理
-    
-    window.print();
-    
-    // 印刷ダイアログが閉じたら元に戻す
-    document.body.classList.remove('printing-daishin');
-    cleanupDaishinPrintArea();
-
-  } else if (currentReportType === '運転日報' && document.getElementById('reportTableView').style.display !== 'none') {
-    // 📄 運転日報 (A4横)
-    setPrintPageStyle('landscape');
-    window.print();
-
-  } else {
-    // 📄 一覧表 (A4横)
-    setPrintPageStyle('landscape');
-    window.print();
-  }
+  // すべてA4横向きで印刷
+  setPrintPageStyle('landscape');
+  window.print();
 }
-
-// 🌟 大伸運輸の表を「A〜H列(1ページ目)」と「J〜N列(2ページ目)」に分割生成する
-function setupDaishinPrintArea() {
-  const originalTable = document.getElementById('reportTableContent');
   
-  const printArea = document.createElement('div');
-  printArea.id = 'daishinPrintArea';
-  printArea.style.display = 'none'; // 通常時は隠しておく
-  
-  const table1 = document.createElement('table');
-  table1.className = 'custom-table';
-  
-  const table2 = document.createElement('table');
-  table1.className = 'custom-table';
-  table2.className = 'custom-table page-break-before'; // 2ページ目用に改ページ付与
-
-  const rows = originalTable.querySelectorAll('tr');
-  
-  rows.forEach((tr, rowIndex) => {
-    // 1ページ目: A〜H列 (インデックス0〜7)、1〜35行目 (rowIndex 0〜34)
-    if (rowIndex <= 34) {
-      const tr1 = document.createElement('tr');
-      tr1.className = tr.className;
-      const cells = tr.querySelectorAll('td, th');
-      cells.forEach((cell, colIndex) => {
-        if (colIndex <= 7) tr1.appendChild(cell.cloneNode(true));
-      });
-      table1.appendChild(tr1);
-    }
-    
-    // 2ページ目: J〜N列 (インデックス9〜13)、1〜10行目 (rowIndex 0〜9)
-    if (rowIndex <= 9) {
-      const tr2 = document.createElement('tr');
-      tr2.className = tr.className;
-      const cells = tr.querySelectorAll('td, th');
-      cells.forEach((cell, colIndex) => {
-        if (colIndex >= 9 && colIndex <= 13) {
-          const cloneCell = cell.cloneNode(true);
-          // 印刷時は入力欄(input)の枠を消して値だけを見せる工夫
-          const inputs = cloneCell.querySelectorAll('input');
-          inputs.forEach(inp => {
-            if (inp.type === 'number') {
-              inp.parentElement.innerHTML = inp.value ? Number(inp.value).toLocaleString() : "0";
-            }
-          });
-          tr2.appendChild(cloneCell);
-        }
-      });
-      table2.appendChild(tr2);
-    }
-  });
-
-  printArea.appendChild(table1);
-  printArea.appendChild(table2);
-  originalTable.parentNode.appendChild(printArea);
-}
-
-// 分割生成したエリアをお掃除
-function cleanupDaishinPrintArea() {
-  const printArea = document.getElementById('daishinPrintArea');
-  if (printArea) {
-    printArea.remove();
-  }
-}      
 </script>
 </body>
 </html>

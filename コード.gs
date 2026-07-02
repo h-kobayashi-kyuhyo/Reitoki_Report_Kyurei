@@ -222,9 +222,8 @@ function saveData(results, targetSsId) {
 }
 
 // 各種日報・一覧表データの取得
-function getReportTableData(dateStr, siteName, reportType, targetSsId) {
-  const sheetName = (reportType === '運転日報') ? '運転日報' : '大伸運輸';
-  return getSpreadsheetTableData(sheetName, dateStr, 'reportTableContent', 'reportTableSpinner', targetSsId);
+function getReportTableData(dateStr, siteName,targetSsId) {
+    return getSpreadsheetTableData('運転日報', dateStr, 'reportTableContent', 'reportTableSpinner', targetSsId);
 }
 
 function getListTableData(dateStr, siteName, sheetName, targetSsId) {
@@ -257,25 +256,5 @@ function getSpreadsheetTableData(sheetName, targetDateStr, containerId, spinnerI
     return { success: true, data: displayValues, containerId: containerId, spinnerId: spinnerId };
   } catch(e) {
     return { success: false, error: e.toString(), containerId: containerId, spinnerId: spinnerId };
-  }
-}
-
-// 大伸運輸のチェックボックス・単価・計算結果をスプレッドシートに保存する関数
-function updateDaishinData(updatedRows, targetSsId) {
-  try {
-    const ss = SpreadsheetApp.openById(targetSsId); // 🌟各工場のスプシを開く
-    const sheet = ss.getSheetByName('大伸運輸');
-    if (!sheet) return { success: false, error: "「大伸運輸」シートが見つかりません" };
-
-    updatedRows.forEach(item => {
-      const rowNum = item.rowIndex + 1;
-      sheet.getRange(rowNum, 10).setValue(item.checked);
-      sheet.getRange(rowNum, 12).setValue(item.price);
-      sheet.getRange(rowNum, 14).setValue(item.result);
-    });
-    SpreadsheetApp.flush();
-    return { success: true };
-  } catch (e) {
-    return { success: false, error: e.message };
   }
 }
