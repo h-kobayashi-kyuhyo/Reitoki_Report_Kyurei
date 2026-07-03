@@ -785,8 +785,8 @@ function renderTableData(response) {
 
   matrix.forEach((row, rowIndex) => {
 
-    // 【表示範囲】運転日報の場合、28行目（インデックス27）までで処理を打ち切る
-    if (isDriverLog && rowIndex > 27) return;
+    // 【表示範囲】運転日報の場合、27行目（インデックス26）までで処理を打ち切る
+    if (isDriverLog && rowIndex > 26) return;
 
     // =========================================================================
     // 1行目・2行目の長いタイトルや情報テキストの自動横結合（colspan）処理
@@ -813,7 +813,6 @@ function renderTableData(response) {
           html += `<td colspan="${colspan}" class="${alignClass}" style="border: none !important; background-color: transparent !important; padding: 6px; white-space: nowrap; ${fontSize}">${cellText}</td>`;
           skip = colspan - 1;
         } else {
-          // 🌟【追加】空セルには高さを維持するための見えない空白（&nbsp;）を入れる
           html += `<td style="border: none !important; background-color: transparent !important; padding: 4px;">&nbsp;</td>`;
         }
       });
@@ -822,7 +821,7 @@ function renderTableData(response) {
     }
 
     // =========================================================================
-    // ヘッダー行（3行目・4行目）の結合（colspan/rowspan）処理
+    // 🌟 新レイアウト対応：ヘッダー行（3行目・4行目）の結合処理
     // =========================================================================
     if (isDriverLog && (rowIndex === 2 || rowIndex === 3)) {
       if (rowIndex === 2) {
@@ -831,15 +830,19 @@ function renderTableData(response) {
           if (colIndex > 14) return; // O列まで
           
           if (colIndex === 0) {
+            // A列: 機械No/基準値（縦結合）
             let text = matrix[3][0] ? matrix[3][0].toString().trim() : "機械No/基準値";
             html += `<th rowspan="2" class="align-middle" style="border: 1px solid #777 !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">${text}</th>`;
-          } else if ([7, 8, 9, 10].includes(colIndex)) {
+          } else if ([7, 12, 13, 14].includes(colIndex)) {
+            // H列(異音/振動), M〜O列(各温度): 縦結合
             html += `<th rowspan="2" class="align-middle" style="border: 1px solid #777 !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
-          } else if (colIndex === 11) {
+          } else if (colIndex === 8) {
+            // I列〜L列: 「運転時間」として横に4つ結合
             html += `<th colspan="4" class="align-middle" style="border: 1px solid #777 !important; padding: 6px; font-size: 0.9rem; white-space: nowrap;">運転時間</th>`;
-          } else if ([12, 13, 14].includes(colIndex)) {
-            return;
+          } else if ([9, 10, 11].includes(colIndex)) {
+            return; // J〜L列は横結合されるためスキップ
           } else {
+            // B〜G列: 上下独立
             html += `<th class="align-middle" style="border: 1px solid #777 !important; padding: 4px; font-size: 0.9rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
           }
         });
@@ -848,7 +851,10 @@ function renderTableData(response) {
         html += "<tr class='table-light fw-bold text-center' style='background-color: #f2f2f2 !important;'>";
         row.forEach((cell, colIndex) => {
           if (colIndex > 14) return;
-          if ([0, 7, 8, 9, 10].includes(colIndex)) return;
+          // 縦結合済みの列（A列, H列, M〜O列）はスキップ
+          if ([0, 7, 12, 13, 14].includes(colIndex)) return;
+          
+          // 下段の項目（基準値や本日(h)など）
           html += `<th class="align-middle" style="border: 1px solid #777 !important; padding: 4px; font-size: 0.85rem; white-space: nowrap;">${cell ? cell.toString().trim() : ""}</th>`;
         });
         html += "</tr>";
@@ -866,7 +872,7 @@ function renderTableData(response) {
       
       let cellStr = cell ? cell.toString().trim() : ""; 
       const isEmpty = cellStr.replace(/[\s ]+/g, "") === "" || cellStr === "FALSE"; 
-      if (isEmpty) cellStr = ""; // 空白は完全に空文字として扱う
+      if (isEmpty) cellStr = ""; 
 
       // 5行目〜16行目のB列〜O列を縦に2行分結合する処理
       if (isDriverLog && rowIndex >= 4 && rowIndex <= 15) {
@@ -876,7 +882,6 @@ function renderTableData(response) {
             let alignClass = isNumber ? "text-end" : "text-center";
             let cellStyle = `padding: 4px 6px; white-space: nowrap; border: 1px solid #777 !important; background-color: #fff !important;`;
             
-            // 🌟【追加】空セルには高さを維持するための見えない空白（&nbsp;）を入れる
             let displayStr = cellStr === "" ? "&nbsp;" : cellStr;
             html += `<td rowspan="2" class="${alignClass} align-middle" style="${cellStyle}">${displayStr}</td>`;
           }
@@ -893,18 +898,23 @@ function renderTableData(response) {
 
       if (isDriverLog) {
         if (rowIndex >= 4 && rowIndex <= 15) {
-          // ① 5行目-16行目のA列のみ
+          // 5行目-16行目のA列のみ
           borderStyle = "border: 1px solid #777 !important;";
           bgStyle = "background-color: #fff !important;";
         } 
-        else if ((rowIndex >= 18 && rowIndex <= 19 && colIndex >= 0 && colIndex <= 3) || 
-                 (rowIndex >= 18 && rowIndex <= 20 && colIndex >= 5 && colIndex <= 8)) {
-          // ② A19:D20 および F19:I21
+        // 🌟 新レイアウト対応：E列やJ列の拡張に合わせて範囲を変更
+        else if (rowIndex >= 18 && rowIndex <= 19 && colIndex >= 0 && colIndex <= 4) {
+          // A19:E20（インデックス: 行18-19, 列0-4）
+          borderStyle = "border: 1px solid #777 !important;";
+          bgStyle = "background-color: #fff !important;";
+        } 
+        else if (rowIndex >= 18 && rowIndex <= 20 && colIndex >= 5 && colIndex <= 9) {
+          // F19:J21（インデックス: 行18-20, 列5-9）
           borderStyle = "border: 1px solid #777 !important;";
           bgStyle = "background-color: #fff !important;";
         } 
         else if (rowIndex >= 18 && rowIndex <= 21 && colIndex >= 10 && colIndex <= 14) {
-          // ③ A23:E27 は大外枠のみ罫線を描く
+          // 備考エリア K19:O22（大外枠のみ）
           let t = (rowIndex === 18) ? "1px solid #777" : "none";
           let b = (rowIndex === 21) ? "1px solid #777" : "none";
           let l = (colIndex === 10) ? "1px solid #777" : "none";
@@ -929,8 +939,6 @@ function renderTableData(response) {
       } 
 
       let cellStyle = `padding: 4px 6px; white-space: nowrap; ${borderStyle} ${bgStyle} ${textColorStyle}`;
-      
-      // 🌟【追加】空セルには高さを維持するための見えない空白（&nbsp;）を入れる
       let displayStr = cellStr === "" ? "&nbsp;" : cellStr;
       html += `<td class="${alignClass}" style="${cellStyle}">${displayStr}</td>`;
     });
