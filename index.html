@@ -880,7 +880,49 @@ function renderTableData(response) {
           if (rowIndex % 2 === 0) {
             let isNumber = !isEmpty && !isNaN(cellStr.replace(/,/g, '')) && !cellStr.includes("/") && !cellStr.includes("日") && !cellStr.includes("月") && !cellStr.includes("年");
             let alignClass = isNumber ? "text-end" : "text-center";
-            let cellStyle = `padding: 4px 6px; white-space: nowrap; border: 1px solid #777 !important; background-color: #fff !important;`;
+            
+            // --- ここから条件付き書式の判定を追加 ---
+            let bgStyle = "#fff"; // 通常は白背景
+            let textColorStyle = ""; // 通常はデフォルト文字色
+            
+            let numValue = parseFloat(cellStr.replace(/,/g, '')); // カンマを除去して数値化
+            
+            // 数値として判定できる場合のみ、列ごとに条件をチェックする
+            if (!isNaN(numValue)) {
+              
+              // B列 (colIndex === 1) : 100以上 (前回の条件)
+              if (colIndex === 1 && numValue >= 100) {
+                bgStyle = "#fff3cd"; textColorStyle = "color: red !important; font-weight: bold;";
+              }
+              // C列 (colIndex === 2) : 10より大きい
+              else if (colIndex === 2 && numValue > 10) {
+                bgStyle = "#fff3cd"; textColorStyle = "color: red !important; font-weight: bold;";
+              }
+              // D列 (colIndex === 3) : 1.18未満 または 10より大きい
+              else if (colIndex === 3 && numValue !==0 && (numValue < 1.18 || numValue > 10)) {
+                bgStyle = "#fff3cd"; textColorStyle = "color: red !important; font-weight: bold;";
+              }
+              // E列 (colIndex === 4) : 1.1未満 または 2.32より大きい
+              else if (colIndex === 4 && numValue !==0 && (numValue < 1.1 || numValue > 2.32)) {
+                bgStyle = "#fff3cd"; textColorStyle = "color: red !important; font-weight: bold;";
+              }
+              // F列 (colIndex === 5) : 0.2未満 または 1より大きい
+              else if (colIndex === 5 && numValue !==0 && (numValue < 0.2 || numValue > 1)) {
+                bgStyle = "#fff3cd"; textColorStyle = "color: red !important; font-weight: bold;";
+              }
+              // G列 (colIndex === 6) : 0.01未満 または 0.1より大きい
+              else if (colIndex === 6 && numValue !==0 && (numValue < 0.01 || numValue > 0.1)) {
+                bgStyle = "#fff3cd"; textColorStyle = "color: red !important; font-weight: bold;";
+              }
+              // O列 (colIndex === 14) : -17以上
+              else if (colIndex === 14 && numValue >= -17) {
+                bgStyle = "#fff3cd"; textColorStyle = "color: red !important; font-weight: bold;";
+              }
+              
+            }
+            
+            let cellStyle = `padding: 4px 6px; white-space: nowrap; border: 1px solid #777 !important; background-color: ${bgStyle} !important; ${textColorStyle}`;
+            // --- ここまで ---
             
             let displayStr = cellStr === "" ? "&nbsp;" : cellStr;
             html += `<td rowspan="2" class="${alignClass} align-middle" style="${cellStyle}">${displayStr}</td>`;
