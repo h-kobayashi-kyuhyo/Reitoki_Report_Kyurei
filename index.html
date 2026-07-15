@@ -890,8 +890,8 @@ function renderTableData(response) {
             // 数値として判定できる場合のみ、列ごとに条件をチェックする
             if (!isNaN(numValue)) {
               
-              // B列 (colIndex === 1) : 100以上 (前回の条件)
-              if (colIndex === 1 && numValue >= 100) {
+              // B列 (colIndex === 1) : 120より大きい (前回の条件)
+              if (colIndex === 1 && numValue > 120) {
                 bgStyle = "#fff3cd"; textColorStyle = "color: red !important; font-weight: bold;";
               }
               // C列 (colIndex === 2) : 10より大きい
